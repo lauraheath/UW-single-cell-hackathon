@@ -1,7 +1,9 @@
+
 library(readxl)
 library(Matrix)
-library(synapser)
 library(rqdatatable)
+library(synapser)
+
 #to login to synapse manually: synLogin("username", "password")
 synLogin()
 
@@ -123,6 +125,18 @@ head(metadata)
 counts <- dat[rowSums(dat != 0) >= 250,]
 dim(counts)
 
+#Make the cell_data_set (CDS) object for monocle:
+#cds <- new_cell_data_set(expression_matrix (counts),
+#                        cell_metadata = cell_metadata,
+#                       gene_metadata = gene_annotation)
+#The expression value matrix must:
+#have the same number of columns as the cell_metadata has rows.
+#have the same number of rows as the gene_metadata has rows.
+#Additionally:
+#row names of the cell_metadata object should match the column names of the expression matrix.
+#row names of the gene_metadata object should match row names of the expression matrix.
+#one of the columns of the gene_metadata should be named "gene_short_name", which represents the gene symbol or simple name (generally used for plotting) for each gene.
+
 gene_short_name <- data.frame(rownames(counts))
 rownames(gene_short_name) <- rownames(counts)
 gene_short_name$gene_short_name <- rownames(counts)
@@ -146,6 +160,9 @@ rownames(Labels) = colnames(counts)
 head(Labels)
 dim(Labels)
 
+#for later use, upload the marker gene data from mathys et al.
+p <- synapser::synGet('syn21618703')
+mathy_marker_genes <- read.csv(p$path,stringsAsFactors = F)
 
 #preprocessing and creating a monocle object
 # must first unload synapser because causes multiple definitions of S4Vectors
@@ -164,16 +181,15 @@ cds_uw <- new_cell_data_set(counts,
 
 ### preprocessing and reduce dimensionality
 ### preprocessing includes library size normalization and regressing out pmi
+### this takes a while
 cds_uw = preprocess_cds(cds_uw, num_dim = 30,method="PCA", norm_method="log", residual_model_formula_str="~PMI")
 cds_uw = reduce_dimension(cds_uw)
 cds_uw = cluster_cells(cds_uw)
 plot_pc_variance_explained(cds_uw)
 
 cds_uw$Diagnosis = cds_uw$Clinical.DX
-cds_uw$Sex = cds_uw$Sex
+cds_uw$Sex = cds_uw$SEX
 cds_uw$Samples = cds_uw$ids
-
-cds_uw$Sex = Labels$SEX
 head(cds_uw$Sex)
 
 p1<-plot_cells(cds_uw, color_cells_by="partition",cell_size=.001,label_cell_groups=0,show_trajectory_graph=FALSE)+theme(
@@ -190,18 +206,11 @@ p6<-plot_cells(cds_uw, color_cells_by="cluster",cell_size=.1,label_cell_groups=0
   legend.title = element_text(size = 10),
   legend.text = element_text(size = 7),legend.key.size = unit(.5, "cm"),
   legend.key.width = unit(0.5,"cm") )+theme(legend.position = "none")
-#pdf(paste0("/Users/relyanow/Documents/Sage/ROSMAP_sn_writeup/figures/UW_sn_summary.pdf"))
+#pdf(paste0("~/UW_sn_summary.pdf"))
 grid.arrange(arrangeGrob(p1,p6, ncol=2),arrangeGrob(p3,p2,ncol=2),p4, heights=c(2,2,4), ncol=1)
 #dev.off()
 
-
-
-#read in marker genes from mathys et al (supplemental table 8)
-mathy_marker_genes <- read.csv('~/mathys_marker_genes.csv', header=TRUE)
-mathy_marker_genes$adj.pvals = as.numeric(as.character(mathy_marker_genes$adj.pvals))
-#mathy_marker_genes <- mathy_marker_genes[mathy_marker_genes$adj.pvals<1e-20,]
-head(mathy_marker_genes)
-
+#label marker genes, defined by mathys et al
 genes<-c()
 for (gene in unique(c(as.vector(mathy_marker_genes$gene.name),c("SYT1","SNAP25","GRIN1","GAD1","GAD2","SLC17A7","CAMK2A","NRGN","AQP4",
                                                                 "GFAP","MBP","MOBP","PLP1","PDGFRA","VCAN","CD74","CSF1R","C3","FLT1","CLDN5")))){
@@ -230,15 +239,15 @@ p6<-plot_cells(cds_subset, color_cells_by="cluster",cell_size=.1,label_cell_grou
   legend.title = element_text(size = 10),
   legend.text = element_text(size = 7),legend.key.size = unit(.5, "cm"),
   legend.key.width = unit(0.5,"cm") )+theme(legend.position = "none")
-#pdf(paste0("/Users/relyanow/Documents/Sage/ROSMAP_sn_writeup/figures/UW_sn_summary_marker_genes.pdf"))
+#pdf(paste0("~/UW_sn_summary_marker_genes.pdf"))
 grid.arrange(arrangeGrob(p1,p6, ncol=2),arrangeGrob(p3,p2,ncol=2),p4, heights=c(2,2,4), ncol=1)
 #dev.off()
 
-saveRDS(cds_subset, file = "UW_monocle_preprocessed_cds.rds")
-cds_uw <- readRDS(file = "UW_monocle_preprocessed_cds.rds")
+#saveRDS(cds_subset, file = "UW_monocle_preprocessed_cds.rds")
+#cds_uw <- readRDS(file = "UW_monocle_preprocessed_cds.rds")
 
 #plot the broad marker genes
-#png(paste0("/Users/relyanow/Documents/Sage/ROSMAP_sn_writeup/figures/UW_sn_diffexp_markers.png"),width = 150, height = 150, units='mm', res = 300)
+#png(paste0("~/UW_sn_diffexp_markers.png"),width = 150, height = 150, units='mm', res = 300)
 plot_cells(cds_subset, genes=c("SYT1","SNAP25","GRIN1","GAD1","GAD2","SLC17A7","CAMK2A","NRGN","AQP4",
                                "GFAP","MBP","MOBP","PLP1","PDGFRA","VCAN","CD74","CSF1R","C3","FLT1","CLDN5"),
            show_trajectory_graph=FALSE,
