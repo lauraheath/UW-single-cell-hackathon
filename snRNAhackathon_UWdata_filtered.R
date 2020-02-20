@@ -122,7 +122,7 @@ metadata$ids <- as.factor(metadata$ids)
 head(metadata)
 
 #this count threshold can be changed
-counts <- dat[rowSums(dat != 0) >= 250,]
+counts <- dat[rowSums(dat != 0) >= 2,]
 dim(counts)
 
 #Make the cell_data_set (CDS) object for monocle:
@@ -136,6 +136,7 @@ dim(counts)
 #row names of the cell_metadata object should match the column names of the expression matrix.
 #row names of the gene_metadata object should match row names of the expression matrix.
 #one of the columns of the gene_metadata should be named "gene_short_name", which represents the gene symbol or simple name (generally used for plotting) for each gene.
+saveRDS(counts, file = "UWfiltered_count_matrix.rds")
 
 gene_short_name <- data.frame(rownames(counts))
 rownames(gene_short_name) <- rownames(counts)
@@ -209,6 +210,16 @@ p6<-plot_cells(cds_uw, color_cells_by="cluster",cell_size=.1,label_cell_groups=0
 #pdf(paste0("~/UW_sn_summary.pdf"))
 grid.arrange(arrangeGrob(p1,p6, ncol=2),arrangeGrob(p3,p2,ncol=2),p4, heights=c(2,2,4), ncol=1)
 #dev.off()
+
+
+#####DIFFERENTIAL EXPRESSION ANALYSIS#####
+#going to look at cluster 10
+cds_test <- cds_uw[,cds_uw@clusters$UMAP$partitions==10]
+dim(cds_test)
+cds_test <- cds_test[1:10,]
+eprs_model <- monocle3::fit_models(cds_test, "~ePRS")
+eprs_model$model_summary
+fit_coefs = coefficient_table(eprs_model)
 
 #label marker genes, defined by mathys et al
 genes<-c()
@@ -302,14 +313,15 @@ l = unique(l)
 length(l)
 inds = c()
 for (gene in l){
-  if ((gene %in% rownames(cds_uw))){
-    inds = c(inds,which(rownames(cds_uw)==gene))
+  if ((gene %in% rownames(cds_subset))){
+    inds = c(inds,which(rownames(cds_subset)==gene))
   }
 }
-cds_subset <- cds_uw[inds,cds_uw$broad.cell.type=='Mic']
-cds_subset <- preprocess_cds(cds_subset, num_dim = 30,residual_model_formula_str="~PMI")
-cds_subset = reduce_dimension(cds_subset)
-cds_subset = cluster_cells(cds_subset)
+#need to change the cds names to prevent overriding cds_subset
+#cds_mic <- cds_subset[inds,cds_subset$broad.cell.type=='Mic']
+#cds_subset <- preprocess_cds(cds_subset, num_dim = 30,residual_model_formula_str="~PMI")
+#cds_subset = reduce_dimension(cds_subset)
+#cds_subset = cluster_cells(cds_subset)
 
 #cs<-cs[,cs$apoe>0]
 cs = cds_uw[,cds_uw$broad.cell.type=='Mic']
